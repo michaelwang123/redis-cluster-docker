@@ -3,7 +3,6 @@ package com.example;
 import redis.clients.jedis.JedisCluster;
 import redis.clients.jedis.HostAndPort;
 import redis.clients.jedis.JedisPoolConfig;
-import redis.clients.jedis.ConnectionPoolConfig;
 
 import java.util.HashSet;
 import java.util.Set;
