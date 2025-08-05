@@ -1,0 +1,51 @@
+services:
+  redis-node-1:
+    image: redis:alpine3.19
+    container_name: redis-node-1
+    ports:
+      - "6371:6379"
+      - "16371:16379"  # 集群总线端口
+    volumes:
+      - ./data/node1:/data
+      - ./config/redis-node-1.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - redis-cluster
+    restart: unless-stopped
+
+  redis-node-2:
+    image: redis:alpine3.19
+    container_name: redis-node-2
+    ports:
+      - "6372:6379"
+      - "16372:16379"  # 集群总线端口
+    volumes:
+      - ./data/node2:/data
+      - ./config/redis-node-2.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - redis-cluster
+    restart: unless-stopped
+
+  redis-node-3:
+    image: redis:alpine3.19
+    container_name: redis-node-3
+    ports:
+      - "6373:6379"
+      - "16373:16379"  # 集群总线端口
+    volumes:
+      - ./data/node3:/data
+      - ./config/redis-node-3.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - redis-cluster
+    restart: unless-stopped
+
+networks:
+  redis-cluster:
+    driver: bridge
+
+volumes:
+  redis-data-1:
+  redis-data-2:
+  redis-data-3:
