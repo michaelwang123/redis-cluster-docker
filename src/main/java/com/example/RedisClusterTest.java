@@ -3,6 +3,7 @@ package com.example;
 import redis.clients.jedis.JedisCluster;
 import redis.clients.jedis.HostAndPort;
 import redis.clients.jedis.JedisPoolConfig;
+import redis.clients.jedis.Jedis;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -114,17 +115,146 @@ public class RedisClusterTest {
         System.out.println("\n=== 测试集群信息 ===");
         
         try {
-            // 获取集群信息 - Jedis 5.x中这些方法不可用，跳过集群信息测试
-            System.out.println("✅ 集群信息测试跳过 (Jedis 5.x中不可用)");
-            System.out.println("集群信息: 在Jedis 5.x中需要通过其他方式获取");
+            // 获取集群的基本信息
+            System.out.println("🔍 获取集群基本信息...");
             
-            // 获取集群节点信息 - Jedis 5.x中这些方法不可用，跳过节点信息测试
-            System.out.println("\n✅ 集群节点信息测试跳过 (Jedis 5.x中不可用)");
-            System.out.println("节点信息: 在Jedis 5.x中需要通过其他方式获取");
+            // 创建一个单独的连接到集群中的一个节点
+            Jedis jedis = null;
+            try {
+                // 连接到第一个节点
+                jedis = new Jedis("127.0.0.1", 6371);
+                
+                // 执行 CLUSTER INFO 命令
+                String clusterInfo = jedis.clusterInfo();
+                System.out.println("✅ 集群信息获取成功:");
+                
+                // 解析并显示关键信息
+                String[] infoLines = clusterInfo.split("\r\n");
+                for (String line : infoLines) {
+                    if (line.startsWith("cluster_state:") || 
+                        line.startsWith("cluster_slots_assigned:") ||
+                        line.startsWith("cluster_known_nodes:") ||
+                        line.startsWith("cluster_size:")) {
+                        System.out.println("   " + line);
+                    }
+                }
+                
+                System.out.println("\n🔍 获取集群节点信息...");
+                
+                // 执行 CLUSTER NODES 命令
+                String clusterNodes = jedis.clusterNodes();
+                System.out.println("✅ 集群节点信息获取成功:");
+                
+                // 解析并显示节点信息
+                String[] nodeLines = clusterNodes.split("\n");
+                int nodeCount = 0;
+                for (String line : nodeLines) {
+                    if (!line.trim().isEmpty()) {
+                        nodeCount++;
+                        String[] parts = line.split(" ");
+                        if (parts.length >= 3) {
+                            String nodeId = parts[0].substring(0, Math.min(8, parts[0].length()));
+                            String address = parts[1];
+                            String role = parts[2].contains("master") ? "主节点" : "从节点";
+                            System.out.println("   节点" + nodeCount + ": " + address + " (" + role + ") ID:" + nodeId + "...");
+                        }
+                    }
+                }
+                
+                System.out.println("\n🎯 集群拓扑验证:");
+                System.out.println("   总节点数: " + nodeCount);
+                System.out.println("   预期节点数: 3");
+                System.out.println("   拓扑状态: " + (nodeCount == 3 ? "✅ 正常" : "⚠️ 异常"));
+                
+                // 测试数据分片
+                System.out.println("\n🔀 测试数据分片...");
+                testDataSharding();
+                
+                // 测试故障转移能力
+                System.out.println("\n🔄 测试集群健康状态...");
+                testClusterHealth(jedis);
+                
+            } finally {
+                if (jedis != null) {
+                    jedis.close();
+                }
+            }
             
         } catch (Exception e) {
             System.err.println("❌ 集群信息测试失败: " + e.getMessage());
             e.printStackTrace();
+        }
+    }
+    
+    /**
+     * 测试数据分片功能
+     */
+    private void testDataSharding() {
+        try {
+            // 测试数据是否分布在不同节点上
+            String[] testKeys = {"key1", "key2", "key3", "key4", "key5"};
+            
+            for (String key : testKeys) {
+                jedisCluster.set(key, "value_" + key);
+            }
+            
+            System.out.println("   ✅ 数据分片测试完成，5个键值对已分布到集群中");
+            
+            // 验证数据可读性
+            int successCount = 0;
+            for (String key : testKeys) {
+                String value = jedisCluster.get(key);
+                if (("value_" + key).equals(value)) {
+                    successCount++;
+                }
+            }
+            
+            System.out.println("   ✅ 数据读取验证: " + successCount + "/" + testKeys.length + " 成功");
+            
+        } catch (Exception e) {
+            System.err.println("   ❌ 数据分片测试失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 测试集群健康状态
+     */
+    private void testClusterHealth(Jedis jedis) {
+        try {
+            // 测试集群状态
+            String clusterInfo = jedis.clusterInfo();
+            boolean isHealthy = clusterInfo.contains("cluster_state:ok");
+            System.out.println("   集群状态: " + (isHealthy ? "✅ 健康" : "❌ 异常"));
+            
+            // 测试所有槽位是否被分配
+            if (clusterInfo.contains("cluster_slots_assigned:16384")) {
+                System.out.println("   槽位分配: ✅ 完整 (16384/16384)");
+            } else {
+                System.out.println("   槽位分配: ⚠️ 不完整");
+            }
+            
+            // 测试各节点连通性
+            System.out.println("   节点连通性测试:");
+            String[] testPorts = {"6371", "6372", "6373"};
+            int reachableNodes = 0;
+            
+            for (String port : testPorts) {
+                try (Jedis testJedis = new Jedis("127.0.0.1", Integer.parseInt(port))) {
+                    String pong = testJedis.ping();
+                    if ("PONG".equals(pong)) {
+                        reachableNodes++;
+                        System.out.println("     端口" + port + ": ✅ 可达");
+                    }
+                } catch (Exception e) {
+                    System.out.println("     端口" + port + ": ❌ 不可达 (" + e.getMessage() + ")");
+                }
+            }
+            
+            System.out.println("   可达节点: " + reachableNodes + "/3 " + 
+                             (reachableNodes == 3 ? "✅" : "⚠️"));
+            
+        } catch (Exception e) {
+            System.err.println("   ❌ 集群健康状态测试失败: " + e.getMessage());
         }
     }
     
