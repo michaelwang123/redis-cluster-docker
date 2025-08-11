@@ -37,12 +37,20 @@ done
 
 echo "✅ 所有容器启动成功"
 
+# 清理现有集群数据
+echo "🧹 清理现有集群数据..."
+for i in {1..3}; do
+    echo "清理节点 $i..."
+    docker exec redis-node-$i redis-cli flushall 2>/dev/null || true
+    docker exec redis-node-$i redis-cli cluster reset 2>/dev/null || true
+done
+
 # 初始化集群
 echo "🔧 初始化Redis集群..."
 sleep 5
 
 # 使用redis-cli创建集群
-docker exec -it redis-node-1 redis-cli --cluster create \
+docker exec redis-node-1 redis-cli --cluster create \
     redis-node-1:6379 \
     redis-node-2:6379 \
     redis-node-3:6379 \
