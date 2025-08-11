@@ -11817,3 +11817,14 @@ $25
 test:string:1754898099334
 $34
 Hello Redis Cluster with Password!
+*5
+$4
+SADD
+$22
+test:set:1754898181980
+$7
+member1
+$7
+member2
+$7
+member3
