@@ -10,3 +10,14 @@ $1
 k
 $1
 v
+*5
+$4
+SADD
+$22
+test:set:1754959537400
+$7
+member1
+$7
+member2
+$7
+member3
